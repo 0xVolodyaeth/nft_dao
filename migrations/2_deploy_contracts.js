@@ -1,5 +1,5 @@
-const Color = artifacts.require("Color");
+const Color = artifacts.require("DAO");
 
-module.exports = function(deployer) {
-  deployer.deploy(Color);
+module.exports = function (deployer) {
+	deployer.deploy(Color);
 };
