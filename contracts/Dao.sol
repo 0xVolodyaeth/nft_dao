@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-// import "./ERC721Full.sol";
-
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract DAO is ERC721, ERC721URIStorage {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
+    event WithDrawal(address to, uint256 amount);
 
-    // address can own only one metal
+    // address can own only one metal and several tokens of the metal
     enum metal {
         Gold,
         Silver,
@@ -21,26 +21,18 @@ contract DAO is ERC721, ERC721URIStorage {
     function _burn(uint256 tokenId)
         internal
         override(ERC721, ERC721URIStorage)
-    {}
-
-    // function _burn() public view,
-
-    function mint2() public returns (string memory) {
-        _setTokenURI(1, "url");
-        return "minted";
+    {
+        super._burn(tokenId);
     }
 
-    mapping(uint256 => string) tokenIdToURI;
     mapping(uint256 => metal) tokenIdToMetalType;
     mapping(uint256 => bool) tokenIdToVote;
-    mapping(address => metal) addressToMetal;
 
     address owner;
-    address payable public contractAddress;
 
-    uint256 amountGold = 0;
-    uint256 amountSilver = 0;
-    uint256 amountBronze = 0;
+    uint256 public amountGold = 0;
+    uint256 public amountSilver = 0;
+    uint256 public amountBronze = 0;
 
     Counters.Counter public goldHodlers;
     Counters.Counter public silverHodlers;
@@ -50,9 +42,9 @@ contract DAO is ERC721, ERC721URIStorage {
     bool public silverTreasuryInited = false;
     bool public bronzeTreasuryInited = false;
 
-    uint256 public goldHodlersVotes = 0;
-    uint256 public silverHodlersVotes = 0;
-    uint256 public bronzeHodlersVotes = 0;
+    uint256 public goldHoldersVotes = 0;
+    uint256 public silverHoldersVotes = 0;
+    uint256 public bronzeHoldersVotes = 0;
 
     string goldURI =
         "https://bafybeiclahw6qhira3khhlnoqjvwddzo5p6xkvb2tlpq6i3usuoj3duaou.ipfs.infura-ipfs.io/";
@@ -63,11 +55,6 @@ contract DAO is ERC721, ERC721URIStorage {
 
     constructor() payable ERC721("metals", "METALS") {
         owner = msg.sender;
-        contractAddress = payable(address(this));
-    }
-
-    function getContractAddress() public view returns (address) {
-        return address(this);
     }
 
     function getContractBalance() public view returns (uint256) {
@@ -75,35 +62,42 @@ contract DAO is ERC721, ERC721URIStorage {
     }
 
     // TODO: use safemath instead of + sign
-    function transferToTreasury() public payable {
-        // uint256 nftType = addressToTokenType[msg.sender];
-        // require(nftType != 0, "address does not own any token");
-        // if (nftType == 1) {
-        //     require(
-        //         goldTreasuryInited,
-        //         "treasury should be inted by the admin first"
-        //     );
-        //     amountGold += msg.value;
-        // }
-        // if (nftType == 2) {
-        //     require(
-        //         silverTreasuryInited,
-        //         "treasury should be inted by the admin first"
-        //     );
-        //     amountSilver += msg.value;
-        // }
-        // if (nftType == 3) {
-        //     require(
-        //         bronzeTreasuryInited,
-        //         "treasury should be inted by the admin first"
-        //     );
-        //     amountBronze += msg.value;
-        // }
+    function transferToTreasury(metal _tokenMetal) public payable {
+        require(balanceOf(msg.sender) != 0, "address does not own any tokens");
+
+        metal metalType = metal(_tokenMetal);
+        if (metalType == metal.Gold) {
+            require(
+                goldTreasuryInited,
+                "treasury should be inted by the admin first"
+            );
+            amountGold += msg.value;
+            return;
+        }
+
+        if (metalType == metal.Silver) {
+            require(
+                silverTreasuryInited,
+                "treasury should be inted by the admin first"
+            );
+            amountSilver += msg.value;
+            return;
+        }
+
+        if (metalType == metal.Bronze) {
+            require(
+                bronzeTreasuryInited,
+                "treasury should be inted by the admin first"
+            );
+            amountBronze += msg.value;
+            return;
+        }
+
+        revert("unknown metal type");
     }
 
     function getBalance(uint256 _nftType) public view returns (uint256 amount) {
         metal tokenMetal = metal(_nftType);
-
         if (tokenMetal == metal.Gold) {
             return amountGold;
         }
@@ -115,26 +109,29 @@ contract DAO is ERC721, ERC721URIStorage {
         if (tokenMetal == metal.Bronze) {
             return amountBronze;
         }
+
+        revert("unknown metal type");
     }
 
     // vote:
     // one token == one vote, user can vote as
     // many times as many tokens he has
     function vote(uint256 _tokenId) public {
+        require(_exists(_tokenId), "token does not exists");
         metal tokenMetal = tokenIdToMetalType[_tokenId];
         require(ownerOf(_tokenId) == msg.sender, "address is not token owner");
         require(!tokenIdToVote[_tokenId], "token has voted already");
 
         if (tokenMetal == metal.Gold) {
-            goldHodlersVotes++;
+            goldHoldersVotes++;
         }
 
         if (tokenMetal == metal.Silver) {
-            silverHodlersVotes++;
+            silverHoldersVotes++;
         }
 
         if (tokenMetal == metal.Bronze) {
-            bronzeHodlersVotes++;
+            bronzeHoldersVotes++;
         }
 
         tokenIdToVote[_tokenId] = true;
@@ -152,25 +149,25 @@ contract DAO is ERC721, ERC721URIStorage {
 
         _tokenIds.increment();
         uint256 current = _tokenIds.current();
-        _safeMint(msg.sender, current);
+        super._safeMint(msg.sender, current);
 
         metal metalType = metal(_tokenType);
 
         if (metalType == metal.Gold) {
             require(goldHodlers.current() < 20, "only 20 can be minted");
-            _setTokenURI(current, goldURI);
+            super._setTokenURI(current, goldURI);
             goldHodlers.increment();
         }
 
         if (metalType == metal.Silver) {
             require(silverHodlers.current() < 20, "only 20 can be minted");
-            _setTokenURI(current, silverURI);
+            super._setTokenURI(current, silverURI);
             silverHodlers.increment();
         }
 
         if (metalType == metal.Bronze) {
             require(bronzeHodlers.current() < 20, "only 20 can be minted");
-            _setTokenURI(current, bronzeURI);
+            super._setTokenURI(current, bronzeURI);
             bronzeHodlers.increment();
         }
 
@@ -184,75 +181,93 @@ contract DAO is ERC721, ERC721URIStorage {
         override(ERC721, ERC721URIStorage)
         returns (string memory)
     {
-        // require(
-        //     _exists(_tokenId),
-        //     "ERC721Metadata: URI query for nonexistent token"
-        // );
-
-        // string memory _tokenURI = tokenIdToURI[_tokenId];
-        // if (bytes(_tokenURI).length == 0) {
-        //     return _baseURI();
-        // }
-
-        // return _tokenURI;
-        return tokenURI(_tokenId);
+        return super.tokenURI(_tokenId);
     }
 
-    // Create treasury for specified token type
+    // Creates treasury for specified token type
     // could be invoced only by dao admin
-    function createTreasury(uint256 _nftType) public pure {
-        // require(owner == address(msg.sender), "only dao admin can create a treasury");
-        // if ((_nftType = 1) && !goldTreasuryInited) {
-        // 	goldTreasuryInited = true;
-        // 	return;
-        // }
-        // if ((_nftType = 2) && !silverTreasuryInited) {
-        // 	silverTreasuryInited = true;
-        // 	return;
-        // }
-        // if ((_nftType = 3) && !bronzeTreasuryInited){
-        // 	bronzeTreasuryInited = true;
-        // 	return;
-        // }
-        // revert("unknown nft type or treasury has been inited already");
+    function createTreasury(uint256 _nftType) public {
+        require(
+            owner == address(msg.sender),
+            "only dao admin can create a treasury"
+        );
+
+        metal tokenMetal = metal(_nftType);
+
+        if ((tokenMetal == metal.Gold) && !goldTreasuryInited) {
+            goldTreasuryInited = true;
+            return;
+        }
+        if ((tokenMetal == metal.Silver) && !silverTreasuryInited) {
+            silverTreasuryInited = true;
+            return;
+        }
+        if ((tokenMetal == metal.Bronze) && !bronzeTreasuryInited) {
+            bronzeTreasuryInited = true;
+            return;
+        }
+
+        revert("unknown nft type or treasury has been inited already");
     }
 
-    function withdraw(uint256 _amount, metal _metal)
-        public
-        payable
-        returns (uint256)
-    {
-        // require(_amount <= 0, "amount should be positive");
-        // uint nftType = addressToNFTType[msg.sender];
-        // require(nftType != 0, "user doe not own nft and cannot withdraw");
-        // if (nftType == 1){
-        // 	require(_amount <= amountGold, "withdraw amount should be less or equal to the amount in treasury");
-        // 	// TODO: check that 2/3 voted and then withdraw
-        // 	if (){
-        // 		// TODO: check that withdraw works
-        // 		(bool sent, ) = msg.sender.call{value: _amount}("");
-        // 		amountGold -= _amount;
-        // 	}
-        // }
-        // if (nftType == 2){
-        // 	require(_amount <= amountSilver, "withdraw amount should be less or equal to the amount in treasury");
-        // }
-        // if (nftType == 3){
-        // 	require(_amount <= amountBronze, "withdraw amount should be less or equal to the amount in treasury");
-        // }
-        // require(sent, "Failed to send Ether");
-        // if (twoThirds(_metal)) {
-        //     return _amount;
-        // }
+    function withdraw(uint256 _amount, metal _metal) public payable {
+        require(_amount >= 0, "amount should be positive");
+        require(msg.sender == owner, "only owner can withdraw funds");
+
+        metal metalType = metal(_metal);
+        if (metalType == metal.Gold) {
+            require(
+                _amount <= amountGold,
+                "withdraw amount should be less or equal to the amount in treasury"
+            );
+            if (
+                votesAmountAllowToWithdraw(
+                    goldHodlers.current(),
+                    goldHoldersVotes
+                )
+            ) {
+                (bool sent, ) = msg.sender.call{value: _amount}("");
+                emit WithDrawal(msg.sender, _amount);
+                require(sent, "failed to send transaction");
+                return;
+            }
+        }
+        if (metalType == metal.Silver) {
+            require(
+                _amount <= amountSilver,
+                "withdraw amount should be less or equal to the amount in treasury"
+            );
+            if (
+                votesAmountAllowToWithdraw(
+                    silverHodlers.current(),
+                    silverHoldersVotes
+                )
+            ) {
+                (bool sent, ) = msg.sender.call{value: _amount}("");
+                emit WithDrawal(msg.sender, _amount);
+                require(sent, "failed to send transaction");
+                return;
+            }
+        }
+        if (metalType == metal.Bronze) {
+            require(
+                _amount <= amountBronze,
+                "withdraw amount should be less or equal to the amount in treasury"
+            );
+            if (
+                votesAmountAllowToWithdraw(
+                    bronzeHodlers.current(),
+                    bronzeHoldersVotes
+                )
+            ) {
+                (bool sent, ) = msg.sender.call{value: _amount}("");
+                emit WithDrawal(msg.sender, _amount);
+                require(sent, "failed to send transaction");
+                return;
+            }
+        }
+        revert("unknown token metal type");
     }
-
-    // uint256 public tres = 0;
-    // uint256 public amount = 0;
-
-    // function addFunds(uint256 _amount) public payable {
-    //     amount = _amount;
-    //     tres += msg.value;
-    // }
 
     // checks that 60% of holders voted
     function votesAmountAllowToWithdraw(uint256 holders, uint256 votes)
@@ -263,8 +278,4 @@ contract DAO is ERC721, ERC721URIStorage {
         uint256 twoThirds = ((holders * 1000) / 3) * 2;
         return (votes * 1000 >= twoThirds);
     }
-
-    // receive() external payable {
-    //     require(balanceOf(msg.sender) != 0, "address does not own any token");
-    // }
 }
