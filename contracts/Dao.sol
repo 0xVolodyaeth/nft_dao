@@ -1,14 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import "./ERC721Full.sol";
+// import "./ERC721Full.sol";
 
-contract DAO is ERC721 {
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+
+contract DAO is ERC721, ERC721URIStorage {
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
+
     // address can own only one metal
     enum metal {
         Gold,
         Silver,
         Bronze
+    }
+
+    function _burn(uint256 tokenId)
+        internal
+        override(ERC721, ERC721URIStorage)
+    {}
+
+    // function _burn() public view,
+
+    function mint2() public returns (string memory) {
+        _setTokenURI(1, "url");
+        return "minted";
     }
 
     mapping(uint256 => string) tokenIdToURI;
@@ -23,9 +42,9 @@ contract DAO is ERC721 {
     uint256 amountSilver = 0;
     uint256 amountBronze = 0;
 
-    uint256 public goldHodlers = 0;
-    uint256 public silverHodlers = 0;
-    uint256 public bronzeHodlers = 0;
+    Counters.Counter public goldHodlers;
+    Counters.Counter public silverHodlers;
+    Counters.Counter public bronzeHodlers;
 
     bool public goldTreasuryInited = false;
     bool public silverTreasuryInited = false;
@@ -35,7 +54,12 @@ contract DAO is ERC721 {
     uint256 public silverHodlersVotes = 0;
     uint256 public bronzeHodlersVotes = 0;
 
-    uint256 tokenIdCounter = 0;
+    string goldURI =
+        "https://bafybeiclahw6qhira3khhlnoqjvwddzo5p6xkvb2tlpq6i3usuoj3duaou.ipfs.infura-ipfs.io/";
+    string silverURI =
+        "https://bafybeid2azvpigjzxvop5dch4eicvhkg6sjyrduwlcvjhgasux47d2mqoq.ipfs.infura-ipfs.io/";
+    string bronzeURI =
+        "https://bafybeif3jivdintrywrvyqf6t342mn35kpwdcnhhxqzk4ik3ugfrnznkdu.ipfs.infura-ipfs.io/";
 
     constructor() payable ERC721("metals", "METALS") {
         owner = msg.sender;
@@ -116,7 +140,7 @@ contract DAO is ERC721 {
         tokenIdToVote[_tokenId] = true;
     }
 
-    function mint(uint256 _tokenType) public {
+    function mintMetal(uint256 _tokenType) public {
         require(
             owner == msg.sender,
             "mint is allowed to be used only by the owner"
@@ -126,55 +150,52 @@ contract DAO is ERC721 {
             "nft type should be 1, 2, or 3"
         );
 
-        _safeMint(msg.sender, tokenIdCounter);
+        _tokenIds.increment();
+        uint256 current = _tokenIds.current();
+        _safeMint(msg.sender, current);
+
         metal metalType = metal(_tokenType);
 
         if (metalType == metal.Gold) {
-            require(goldHodlers < 20, "only 20 addresses can own a token");
-            tokenIdToURI[
-                tokenIdCounter
-            ] = "https://bafybeiclahw6qhira3khhlnoqjvwddzo5p6xkvb2tlpq6i3usuoj3duaou.ipfs.infura-ipfs.io/";
-            goldHodlers++;
+            require(goldHodlers.current() < 20, "only 20 can be minted");
+            _setTokenURI(current, goldURI);
+            goldHodlers.increment();
         }
 
         if (metalType == metal.Silver) {
-            require(silverHodlers < 20, "only 20 addresses can own a token");
-            tokenIdToURI[
-                tokenIdCounter
-            ] = "https://bafybeid2azvpigjzxvop5dch4eicvhkg6sjyrduwlcvjhgasux47d2mqoq.ipfs.infura-ipfs.io/";
-            silverHodlers++;
+            require(silverHodlers.current() < 20, "only 20 can be minted");
+            _setTokenURI(current, silverURI);
+            silverHodlers.increment();
         }
 
         if (metalType == metal.Bronze) {
-            require(bronzeHodlers < 20, "only 20 addresses can own a token");
-            tokenIdToURI[
-                tokenIdCounter
-            ] = "https://bafybeif3jivdintrywrvyqf6t342mn35kpwdcnhhxqzk4ik3ugfrnznkdu.ipfs.infura-ipfs.io/";
-            bronzeHodlers++;
+            require(bronzeHodlers.current() < 20, "only 20 can be minted");
+            _setTokenURI(current, bronzeURI);
+            bronzeHodlers.increment();
         }
 
-        tokenIdToMetalType[tokenIdCounter] = metalType;
-        tokenIdCounter++;
+        tokenIdToMetalType[current] = metalType;
     }
 
     function tokenURI(uint256 _tokenId)
         public
         view
         virtual
-        override
+        override(ERC721, ERC721URIStorage)
         returns (string memory)
     {
-        require(
-            _exists(_tokenId),
-            "ERC721Metadata: URI query for nonexistent token"
-        );
+        // require(
+        //     _exists(_tokenId),
+        //     "ERC721Metadata: URI query for nonexistent token"
+        // );
 
-        string memory _tokenURI = tokenIdToURI[_tokenId];
-        if (bytes(_tokenURI).length == 0) {
-            return _baseURI();
-        }
+        // string memory _tokenURI = tokenIdToURI[_tokenId];
+        // if (bytes(_tokenURI).length == 0) {
+        //     return _baseURI();
+        // }
 
-        return _tokenURI;
+        // return _tokenURI;
+        return tokenURI(_tokenId);
     }
 
     // Create treasury for specified token type
@@ -225,13 +246,13 @@ contract DAO is ERC721 {
         // }
     }
 
-    uint256 public tres = 0;
-    uint256 public amount = 0;
+    // uint256 public tres = 0;
+    // uint256 public amount = 0;
 
-    function addFunds(uint256 _amount) public payable {
-        amount = _amount;
-        tres += msg.value;
-    }
+    // function addFunds(uint256 _amount) public payable {
+    //     amount = _amount;
+    //     tres += msg.value;
+    // }
 
     // checks that 60% of holders voted
     function votesAmountAllowToWithdraw(uint256 holders, uint256 votes)

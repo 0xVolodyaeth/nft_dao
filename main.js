@@ -1,5 +1,5 @@
 const Web3 = require('web3');
-const MyContract = require('./build/contracts/DAO.json');
+const MyContract = require('./build/contracts/dao.json');
 
 
 const init = async () => {
@@ -15,13 +15,16 @@ const init = async () => {
 	const addresses = await web3.eth.getAccounts();
 	console.log(addresses)
 
-	await contract.methods.addFunds(1).send({
-		from: addresses[0],
-		value: 20000000000000000
-	});
+	// await contract.methods.addFunds(1).send({
+	// 	from: addresses[0],
+	// 	value: 20000000000000000
+	// });
 
-	console.log(await contract.methods.tres().call());
-	console.log(await contract.methods.amount().call());
+	// console.log(await contract.methods.tres().call());
+	// console.log(await contract.methods.amount().call());
+	const okenId = await contract.methods.mintMetal(0).send({ from: addresses[0], gas: 1000000 });
+	console.log(okenId.events.Transfer)
+	console.log(okenId)
 }
 
 
